@@ -1,4 +1,4 @@
-package newblogproject.example.newproject.IO;
+package newblogproject.example.newproject.DTO;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Min;
@@ -17,7 +17,6 @@ public class ProfileRequest {
     private String email;
 @Min(5)
     private String password;
-@Min(10)
-    private String phonenumber;
+
 }
 

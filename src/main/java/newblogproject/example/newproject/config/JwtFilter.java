@@ -2,6 +2,7 @@ package newblogproject.example.newproject.config;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -21,6 +22,8 @@ import org.springframework.web.WebApplicationInitializer;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Date;
+import java.util.List;
 
 @Component
 public class JwtFilter extends OncePerRequestFilter {
@@ -29,49 +32,68 @@ public class JwtFilter extends OncePerRequestFilter {
 
     @Autowired
     ApplicationContext context;
+ @Autowired
+ MyUserDetailsService myUserDetailsService;
+//    private static final List<String> PUBLIC_URLS = List.of("/login", "/register", "/send-reset-otp", "/reset-password", "/logout","/refresh");
+private static final List<String> PUBLIC_URLS = List.of(
+        "/api/login",
+        "/api/register",
+        "/api/send-reset-otp",
+        "/api/reset-password",
+        "/api/logout",
+        "/api/refresh"
+);
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-        String authHeader = request.getHeader("Authorization");
-        String token = null;
-        String username = null;
-
         String path = request.getServletPath();
-        if (path.equals("/api/login") || path.equals("/api/register")) {
+
+        if (PUBLIC_URLS.contains(path)) {
             filterChain.doFilter(request, response);
             return;
         }
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            token = authHeader.substring(7);
-            username = jwts.extractUserName(token);
+
+        String jwt = null;
+        String email = null;
+
+        //1. check the authorization header
+        final String authorizationHeader = request.getHeader("Authorization");
+        if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
+            jwt = authorizationHeader.substring(7);
         }
 
-        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-
-
-            UserDetails userDetails = context.getBean(MyUserDetailsService.class).loadUserByUsername(username);
-            if (jwts.validateToken(token, userDetails)) {
-                UsernamePasswordAuthenticationToken authtoken =
-                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-
-                authtoken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authtoken);
-
+        //2. If not found in header, check cookies
+        if (jwt == null) {
+            Cookie[] cookies = request.getCookies();
+            if (cookies != null) {
+                for (Cookie cookie: cookies) {
+                    if ("jwt".equals(cookie.getName())) {
+                        jwt = cookie.getValue();
+                        break;
+                    }
+                }
             }
-
         }
-        filterChain.doFilter(request, response);
+
+        //3. validate the token and set security context
+        if (jwt != null) {
+            System.out.println("Token being verified: " + jwt);
+            System.out.println("Token expiration: " + jwts.extractExpiration(jwt));
+            System.out.println("Current time: " + new Date());
+
+            email = jwts.extractEmail(jwt);
+            if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                UserDetails userDetails = myUserDetailsService.loadUserByUsername(email);
+                if (jwts.validateToken(jwt, userDetails)) {
+                    UsernamePasswordAuthenticationToken authenticationToken =
+                            new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                    authenticationToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authenticationToken);
+                }
+            }
+        }
+        filterChain.doFilter(request,response);
     }
 
 
 }
-//          UDS=MUDS.loadUserByUsername(username);
-//          if(jwts.validateToken(token,UDS))
-//          {
-//              UsernamePasswordAuthenticationToken authtoken=
-//                      new UsernamePasswordAuthenticationToken(UDS,null,UDS.getAuthorities());
-//
-//              authtoken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-//              SecurityContextHolder.getContext().setAuthentication(authtoken);
-//
-//          }

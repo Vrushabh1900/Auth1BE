@@ -1,10 +1,9 @@
-package newblogproject.example.newproject.IO;
+package newblogproject.example.newproject.DTO;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.RequiredArgsConstructor;
 
 @Data
 @AllArgsConstructor

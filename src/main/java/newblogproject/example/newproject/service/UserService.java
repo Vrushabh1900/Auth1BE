@@ -1,24 +1,18 @@
 package newblogproject.example.newproject.service;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import newblogproject.example.newproject.IO.ProfileRequest;
+import newblogproject.example.newproject.DTO.ProfileRequest;
 import newblogproject.example.newproject.models.Users;
 import newblogproject.example.newproject.repo.UserRepo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Service
@@ -35,13 +29,18 @@ public class UserService {
     EmailService es;
 
     public String createuser(@Valid ProfileRequest profileRequest) {
-        Users user=converttoUsers(profileRequest);
+        Users user = converttoUsers(profileRequest);
+        if (profileRequest.getEmail().equalsIgnoreCase("gmvrushabh@gmail.com")) {
+            user.setRoles(Set.of("USER", "ADMIN"));
+        } else {
+            user.setRoles(Set.of("USER"));
+        }
+        if (repo.existsByEmail(user.getEmail())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already exists");
+        }
         repo.save(user);
-        if(!repo.existsByEmail(user.getEmail()))
-        {  repo.save(user);
-            return "New user is saved";
-            }
-        throw new ResponseStatusException(HttpStatus.CONFLICT,"Email already exists");
+        return "New user is saved";
+
     }
 
     private Users converttoUsers(ProfileRequest request) {
@@ -95,56 +94,28 @@ public class UserService {
 
     }
 
-
-    public void sendOtp(String method, String contact) {
+    public void sendOtp(String method, String contact,String email) {
         String otp = String.valueOf(ThreadLocalRandom.current().nextInt(100000, 1000000));// generate 6-digit OTP
-        Optional<Users> userOpt;
 
-        if ("EMAIL".equalsIgnoreCase(method)) {
-            userOpt = repo.findByEmail(contact);
-        } else if ("PHONE".equalsIgnoreCase(method)) {
-            userOpt = repo.findByPhonenumber(contact);
-        } else {
-            throw new RuntimeException("Invalid 2FA method");
-        }
-
-        if (userOpt.isEmpty()) {
-            throw new RuntimeException("User not found with given contact: " + contact);
-        }
-
-        Users user = userOpt.get();
-        user.setVerifyOtp(otp);
+        Users user = repo.findByEmail(email).orElseThrow(()->new UsernameNotFoundException("user not found"+email));
+        user.setVerifyOtp(passwordEncoder.encode(otp));//encrypt it
         user.setVerifyOtpExpireAt(System.currentTimeMillis() + 5 * 60 * 1000); // 5 min
         repo.save(user);
 
         // Send OTP
         if ("EMAIL".equalsIgnoreCase(method)) {
-            es.sendEmailVerificationOtp(user.getEmail(), otp);
+            es.sendEmailVerificationOtp(email, otp);
         } else {
-            es.sendPhoneVerificationOtp(user.getPhonenumber(), otp); // even Twilio can be called from this
+            es.sendPhoneVerificationOtp(contact, otp); // even Twilio can be called from this
         }
     }
 
 
-    public boolean verifyOtp(String method, String contact, String otp) {
-        Optional<Users> userOpt;
-
-        if ("EMAIL".equalsIgnoreCase(method)) {
-            userOpt = repo.findByEmail(contact);
-        } else if ("PHONE".equalsIgnoreCase(method)) {
-            userOpt = repo.findByPhonenumber(contact);
-        } else {
-            throw new RuntimeException("Invalid method");
-        }
-
-        if (userOpt.isEmpty()) {
-            throw new RuntimeException("User not found");
-        }
-
-        Users user = userOpt.get();
+    public boolean verifyOtp(String method, String contact, String otp,String email) {
+        Users user = repo.findByEmail(email).orElseThrow(()->new UsernameNotFoundException("user not found"+email));
 
         if (user.getVerifyOtp() == null ||
-                !user.getVerifyOtp().equals(otp) ||
+                !passwordEncoder.matches(otp,user.getVerifyOtp()) ||
                 user.getVerifyOtpExpireAt() < System.currentTimeMillis()) {
             return false;
         }
@@ -155,5 +126,14 @@ public class UserService {
         repo.save(user);
         return true;
     }
+
+    public List<Users> getAllusers() {
+        List<Users> users=repo.findAll();
+        if(users.isEmpty())
+        {throw new RuntimeException("No users available");
+    }
+        return users;
+}
+
 
 }

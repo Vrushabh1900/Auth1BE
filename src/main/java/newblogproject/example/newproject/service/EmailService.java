@@ -53,6 +53,9 @@ public class EmailService {
 
     public void sendPhoneVerificationOtp(String phoneNumber, String otp) {
         initTwilio();
+        if (!phoneNumber.startsWith("+")) {
+            phoneNumber = "+91" +phoneNumber; // for India
+        }
 
         try {
             Message message = Message.creator(

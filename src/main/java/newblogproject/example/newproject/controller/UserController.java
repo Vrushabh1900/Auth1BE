@@ -1,11 +1,9 @@
 package newblogproject.example.newproject.controller;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.Valid;
-import lombok.Getter;
-import newblogproject.example.newproject.IO.AuthRequest;
-import newblogproject.example.newproject.IO.ProfileRequest;
-import newblogproject.example.newproject.IO.ResetOtpRequest;
+import newblogproject.example.newproject.DTO.AuthRequest;
+import newblogproject.example.newproject.DTO.ProfileRequest;
+import newblogproject.example.newproject.DTO.ResetOtpRequest;
 import newblogproject.example.newproject.models.Users;
 import newblogproject.example.newproject.repo.UserRepo;
 import newblogproject.example.newproject.service.JWTservice;
@@ -16,12 +14,14 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.annotation.CurrentSecurityContext;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -46,24 +46,27 @@ public class UserController {
     MyUserDetailsService myUserDetailsService;
     @Autowired
     JWTservice jwTservice;
-    @Autowired
-    ResetOtpRequest resetOtpRequest;
+
     @PostMapping("/register")
     public ResponseEntity<?> registeruser(@Valid @RequestBody ProfileRequest profileRequest)
     {
 try{
-    return new ResponseEntity<>(service.createuser(profileRequest),HttpStatus.OK);
+    return new ResponseEntity<>(service.createuser(profileRequest),HttpStatus.CREATED);
 } catch (Exception e) {
-    throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,e.getMessage());
+    return new ResponseEntity<>(e.getMessage(),HttpStatus.CONFLICT);
 }
 
     }
-//
-//    @GetMapping("/checkuser")
-//    public ResponseEntity<List<Users>> givsuser()
-//    {
-//
-//    }
+@PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/admin/users")
+    public ResponseEntity<List<Users>> adminacess()
+{
+    try{
+       return new ResponseEntity<>(service.getAllusers(),HttpStatus.OK);
+    } catch (Exception e) {
+        throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,e.getMessage());
+    }
+}
 
 @PostMapping("/login")
 public ResponseEntity<?> loginpage(@RequestBody AuthRequest authRequest)
@@ -73,14 +76,21 @@ public ResponseEntity<?> loginpage(@RequestBody AuthRequest authRequest)
         UserDetails userDetails=myUserDetailsService.loadUserByUsername(authRequest.getEmail());
 
         String JwtToken=jwTservice.generateToken(userDetails.getUsername());
+        String refreshToken = jwTservice.generateRefreshToken(userDetails.getUsername());
         ResponseCookie RC=ResponseCookie.from("jwt",JwtToken)
                 .httpOnly(true)
                 .path("/")
                 .maxAge(Duration.ofDays(1))
-                .sameSite("Strict")
+                .sameSite("None")
                 .build();
-        return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE, RC.toString())
-                .body("");
+        ResponseCookie refreshCookie = ResponseCookie.from("refresh_token", refreshToken)
+                .httpOnly(true)
+                .path("/api/refresh")
+                .maxAge(Duration.ofDays(7))
+                .sameSite("None")
+                .build();
+        return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE, RC.toString(),refreshCookie.toString())
+                .body("Jwttoken:"+JwtToken+"\nrefreshtoken:"+refreshToken);
     }
 
     catch(BadCredentialsException ex) {
@@ -136,25 +146,25 @@ public ResponseEntity<?> loginpage(@RequestBody AuthRequest authRequest)
     }
 
     @PostMapping("/2fa/send")
-    public ResponseEntity<?> send2FAOtp(@RequestBody Map<String, String> request) {
-        String emailOrPhone = request.get("contact"); // can be email or phone
+    public ResponseEntity<?> send2FAOtp(@RequestBody Map<String, String> request,@CurrentSecurityContext(expression = "authentication?.name")String email) {
+        String emailOrPhone = request.get("contact"); // take from authenticated user
         String method = request.get("method"); // "EMAIL" or "PHONE"
 
         try {
-            service.sendOtp(method, emailOrPhone);
+            service.sendOtp(method, emailOrPhone,email);
             return ResponseEntity.ok("OTP sent via " + method);
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
         }
     }
     @PostMapping("/2fa/verify")
-    public ResponseEntity<?> verifyOtp(@RequestBody Map<String, String> request) {
+    public ResponseEntity<?> verifyOtp(@RequestBody Map<String, String> request,@CurrentSecurityContext(expression = "authentication?.name")String email) {
         String contact = request.get("contact");
         String method = request.get("method"); // "EMAIL" or "PHONE"
         String otp = request.get("otp");
 
         try {
-            boolean valid = service.verifyOtp(method, contact, otp);
+            boolean valid = service.verifyOtp(method, contact, otp,email);
             if (valid) {
                 return ResponseEntity.ok("OTP verified");
             } else {
@@ -164,6 +174,42 @@ public ResponseEntity<?> loginpage(@RequestBody AuthRequest authRequest)
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
         }
     }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refreshToken(@CookieValue(name = "refresh_token", required = false) String refreshToken) {
+        if (refreshToken == null || jwTservice.isTokenExpired(refreshToken)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Refresh token expired or missing");
+        }
+        String email = jwTservice.extractEmail(refreshToken);
+        UserDetails user= myUserDetailsService.loadUserByUsername(email);
+        if (!jwTservice.validateToken(refreshToken, user)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid refresh token");
+        }
+
+        String JwtToken=jwTservice.generateToken(email);
+        String newRefreshToken = jwTservice.generateRefreshToken(email);
+
+        ResponseCookie jwt = ResponseCookie.from("jwt", JwtToken)
+                .httpOnly(true)
+                .path("/")
+                .maxAge(Duration.ofMinutes(5))
+                .sameSite("None")
+                .build();
+
+        ResponseCookie refreshCookie = ResponseCookie.from("refresh_token", newRefreshToken)
+                .httpOnly(true)
+                .path("/api/refresh")
+                .maxAge(Duration.ofDays(7))
+                .sameSite("None")
+
+                .build();
+        System.out.println("🔁 Refresh token received: " + refreshToken);
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, jwt.toString(), refreshCookie.toString())
+                .body(Map.of("message", "Tokens refreshed"));
+    }
+
 
 
 }

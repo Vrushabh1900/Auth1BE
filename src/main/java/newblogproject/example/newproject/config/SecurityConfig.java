@@ -2,14 +2,17 @@ package newblogproject.example.newproject.config;
 
 import newblogproject.example.newproject.service.MyUserDetailsService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.orm.jpa.HibernatePropertiesCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -34,12 +37,15 @@ import static org.springframework.security.config.Customizer.withDefaults;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
     @Autowired
     UserDetailsService UDS;
     @Autowired
     JwtFilter jwtFilter;
+    @Autowired
+    CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
 
     @Bean
     public SecurityFilterChain securityfilterchain(HttpSecurity security) throws Exception {
@@ -50,14 +56,14 @@ public class SecurityConfig {
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers("/api/posts/*/image").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // <-- Allow preflight
-                      .requestMatchers("/api/login","/api/register")
+                      .requestMatchers("/api/login","/api/register","/api/refresh")
 //                        .requestMatchers("/api/login", "/api/register")
                         .permitAll()
 
                         .anyRequest().authenticated())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+                .exceptionHandling(ex->ex.authenticationEntryPoint(customAuthenticationEntryPoint));
 
 
         return security.build();
@@ -102,11 +108,11 @@ public class SecurityConfig {
 //    }
 
     @Bean
-    public AuthenticationProvider authenticationProvider() {
+    public AuthenticationManager authenticationManager() {
         DaoAuthenticationProvider nig = new DaoAuthenticationProvider();
         nig.setPasswordEncoder(new BCryptPasswordEncoder(12));
         nig.setUserDetailsService(UDS);
-        return nig;
+        return new ProviderManager(nig);
     }
 
     @Bean
@@ -114,10 +120,7 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
-    @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager();
-    }
+
 //    @Bean
 //    public CorsConfigurationSource corsConfigurationSource() {
 //        CorsConfiguration configuration = new CorsConfiguration();
@@ -130,6 +133,10 @@ public class SecurityConfig {
 //        source.registerCorsConfiguration("/api/**", configuration);
 //        return source;
 //    }
+//@Bean
+//public HibernatePropertiesCustomizer customizer() {
+//    return hibernateProperties -> hibernateProperties.put("hibernate.generate_statistics", true);
+//}
 
 
 }

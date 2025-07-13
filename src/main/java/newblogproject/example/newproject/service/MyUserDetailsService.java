@@ -1,6 +1,6 @@
 package newblogproject.example.newproject.service;
 
-import newblogproject.example.newproject.models.MyUserDetails;
+
 import newblogproject.example.newproject.models.Users;
 import newblogproject.example.newproject.repo.UserRepo;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,11 +27,14 @@ public class MyUserDetailsService implements UserDetailsService {
     UserRepo repo;
 
     @Override
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        Users user = repo.findByEmail(username).orElseThrow(()->new UsernameNotFoundException("email not found"+username));
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+        Users user = repo.findByEmail(email).orElseThrow(()->new UsernameNotFoundException("email not found"+email));
 
+        List<SimpleGrantedAuthority> authorities = user.getRoles().stream()
+                .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                .toList();
 
-        return new User(user.getUsername(),user.getPassword(),new ArrayList<>());
+        return new User(user.getEmail(),user.getPassword(),authorities);
     }
 
 

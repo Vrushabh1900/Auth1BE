@@ -5,7 +5,11 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.io.Encoders;
 import io.jsonwebtoken.security.Keys;
+import newblogproject.example.newproject.models.Users;
+import newblogproject.example.newproject.repo.UserRepo;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.KeyGenerator;
@@ -21,7 +25,15 @@ import java.util.function.Function;
 @Service
 public class JWTservice {
 
-private String secretkey="bf19fbed1d9d8678478e185aee3c91e20f2aef714a7b9fa47955e72c4d64964d";
+    private final long REFRESH_TOKEN_EXPIRATION = 1000L * 60 * 60 * 24 * 7;
+    @Autowired
+    UserRepo userRepo;
+
+//private String secretkey="bf19fbed1d9d8678478e185aee3c91e20f2aef714a7b9fa47955e72c4d64964d";
+//private String secretkey = "3uLuRQ2xkKZbCzAXooyLr04JQADq3m+2ZqK9VYlGZ2g=";
+  private String secretkey=  "cfJVvt0sJDZSLxKTZHgN7qzRCU7ZCy9tK1WmFEuH8dg=";
+
+
 //
 //    public JWTservice() {
 //        try {
@@ -37,14 +49,16 @@ private String secretkey="bf19fbed1d9d8678478e185aee3c91e20f2aef714a7b9fa47955e7
 //
 //    }
 
-    public String generateToken(String username) {
+    public String generateToken(String email) {
         Map<String,Object> claims=new HashMap<>();
+        Users user= userRepo.findByEmail(email).orElseThrow(()->new UsernameNotFoundException("user not found"+email));
+        claims.put("roles", user.getRoles());
         return Jwts.builder()
                 .claims()
                 .add(claims)
-                .subject(username)
+                .subject(email)
                 .issuedAt(new Date(System.currentTimeMillis()))
-                .expiration((new Date(System.currentTimeMillis()+1000*60*300)))
+                .expiration((new Date(System.currentTimeMillis()+1000*60*5)))
                 .and()
                 .signWith(getKeyy())
                 .compact();
@@ -54,13 +68,12 @@ private String secretkey="bf19fbed1d9d8678478e185aee3c91e20f2aef714a7b9fa47955e7
 
     private SecretKey getKeyy()
     {
-//    byte[] skey= Decoders.BASE64.decode(secretkey);
         byte[] skey= Base64.getDecoder().decode(secretkey);
         return Keys.hmacShaKeyFor(skey);
     }
 
 
-    public String extractUserName(String token) {
+    public String extractEmail(String token) {
         // extract the username from jwt token
         return extractClaim(token, Claims::getSubject);
     }
@@ -79,18 +92,30 @@ private String secretkey="bf19fbed1d9d8678478e185aee3c91e20f2aef714a7b9fa47955e7
     }
 
     public boolean validateToken(String token, UserDetails userDetails) {
-        final String userName = extractUserName(token);
+        final String userName = extractEmail(token);
         return (userName.equals(userDetails.getUsername()) && !isTokenExpired(token));
     }
 
-    private boolean isTokenExpired(String token) {
+public boolean isTokenExpired(String token) {
         return extractExpiration(token).before(new Date());
     }
 
-    private Date extractExpiration(String token) {
+  public Date extractExpiration(String token) {
         return extractClaim(token, Claims::getExpiration);
     }
 
 
+    public String generateRefreshToken(String email) {
+        Map<String,Object> claims=new HashMap<>();
+        return Jwts.builder()
+                .claims()
+                .add(claims)
+                .subject(email)
+                .issuedAt(new Date(System.currentTimeMillis()))
+                .expiration((new Date(System.currentTimeMillis()+1000*60*7)))
+                .and()
+                .signWith(getKeyy())
+                .compact();
+    }
 
 }
