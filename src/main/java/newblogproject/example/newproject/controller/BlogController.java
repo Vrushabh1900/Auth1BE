@@ -54,14 +54,14 @@ return new ResponseEntity<>(e.getMessage(),HttpStatus.INTERNAL_SERVER_ERROR);
 
     }
 
-//    @GetMapping ("/posts")
-//    public ResponseEntity<List<Blog>> showblogs()
-//    {
-//        return new ResponseEntity<>(bs.getposts(), HttpStatus.OK);
-//
-//    }
+   // @GetMapping ("/posts")
+   // public ResponseEntity<List<Blog>> showblogs()
+   // {
+   //     return new ResponseEntity<>(bs.getposts(), HttpStatus.OK);
 
-//    @GetMapping("/posts")
+   // }
+
+   @GetMapping("/posts")
     public Page<Blog> getBlogs(
             @RequestParam(defaultValue = "0") int page,                         // Page number
             @RequestParam(defaultValue = "10") int size,                        // Blogs per page
@@ -86,7 +86,7 @@ return new ResponseEntity<>(e.getMessage(),HttpStatus.INTERNAL_SERVER_ERROR);
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
-        System.out.println("🔥🔥🔥 HIT /posts/slice 🔥🔥🔥");
+        System.out.println(" ----------------HIT /posts/slice------------------- ");
         Pageable pageable = PageRequest.of(page, size);
 //        Slice<Blog> slice = repo.findByKeyword(keyword.orElse(""), pageable);
         Slice<Blog> slice;
@@ -116,7 +116,7 @@ return new ResponseEntity<>(e.getMessage(),HttpStatus.INTERNAL_SERVER_ERROR);
 //        headers.setContentType(MediaType.valueOf(blog.getImageType())); // e.g., "image/jpeg"
 //        return new ResponseEntity<>(blog.getImageData(), headers, HttpStatus.OK);
 
-//byte[] nigger= blog.getImageData();
+//byte[] image= blog.getImageData();
 //        return ResponseEntity.ok()
 //                .contentType(MediaType.valueOf(blog.getImageType()))
 //                .body(blog.getImageData());
