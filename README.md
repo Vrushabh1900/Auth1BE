@@ -14,7 +14,7 @@ This is a Spring Boot backend for a blog website. It includes a fully functional
 - ✅ Pagination and Sorting of posts
 - ✅ Role-based access control (admin/user)
 - ✅ Secure endpoints with Spring Security
-
+- ✅ Caching with Redis
 ## 📌 Tech Stack
 
 - Java 21
