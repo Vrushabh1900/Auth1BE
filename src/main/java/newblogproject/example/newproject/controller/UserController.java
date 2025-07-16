@@ -3,6 +3,7 @@ package newblogproject.example.newproject.controller;
 import jakarta.validation.Valid;
 import newblogproject.example.newproject.DTO.AuthRequest;
 import newblogproject.example.newproject.DTO.ProfileRequest;
+import newblogproject.example.newproject.DTO.ProfileResponse;
 import newblogproject.example.newproject.DTO.ResetOtpRequest;
 import newblogproject.example.newproject.models.Users;
 import newblogproject.example.newproject.repo.UserRepo;
@@ -209,8 +210,11 @@ public ResponseEntity<?> loginpage(@RequestBody AuthRequest authRequest)
                 .header(HttpHeaders.SET_COOKIE, jwt.toString(), refreshCookie.toString())
                 .body(Map.of("message", "Tokens refreshed"));
     }
-
-
+@GetMapping("/users")
+public ResponseEntity<ProfileResponse> getusers(@CurrentSecurityContext(expression = "authentication?.name")String email)
+{
+    return new ResponseEntity<>(service.findByemail(email),HttpStatus.OK);
+}
 
 }
 

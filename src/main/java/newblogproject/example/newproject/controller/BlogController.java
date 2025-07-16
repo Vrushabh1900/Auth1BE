@@ -2,14 +2,12 @@ package newblogproject.example.newproject.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.transaction.Transactional;
+import newblogproject.example.newproject.DTO.SliceResponse;
 import newblogproject.example.newproject.models.Blog;
 import newblogproject.example.newproject.repo.BlogRepo;
 import newblogproject.example.newproject.service.BlogService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.*;
 import org.springframework.http.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.annotation.CurrentSecurityContext;
@@ -20,6 +18,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api")
@@ -42,7 +41,7 @@ public String first(HttpServletRequest req)
 //return (CsrfToken) request.getAttribute("_csrf");
 //}
 
-    @PostMapping("/posts")
+//    @PostMapping("/posts")
     public ResponseEntity<?> createblogs(@RequestPart Blog blogo, @RequestPart MultipartFile imagefile)
     {
         try
@@ -62,18 +61,47 @@ return new ResponseEntity<>(e.getMessage(),HttpStatus.INTERNAL_SERVER_ERROR);
 //
 //    }
 
-    @GetMapping("/posts")
+//    @GetMapping("/posts")
     public Page<Blog> getBlogs(
             @RequestParam(defaultValue = "0") int page,                         // Page number
             @RequestParam(defaultValue = "10") int size,                        // Blogs per page
             @RequestParam(defaultValue = "id") String sortBy,           // Sort field
             @RequestParam(defaultValue = "desc") String sortDir                // Sort direction
     ) {
+        List<String> sortfield = List.of("id", "title", "createdAt");
+        if (!sortfield.contains(sortBy)) {
+            throw new IllegalArgumentException("Invalid sort field: " + sortBy);
+        }
+
         Sort sort = sortDir.equalsIgnoreCase("asc") ? Sort.by(sortBy).ascending()
                 : Sort.by(sortBy).descending();
 
         Pageable pageable = PageRequest.of(page, size, sort);
         return repo.findAll(pageable);
+    }
+
+    @GetMapping("/posts/slice")
+    public SliceResponse<Blog> getBlogsSlice(
+            @RequestParam Optional<String> keyword,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        System.out.println("🔥🔥🔥 HIT /posts/slice 🔥🔥🔥");
+        Pageable pageable = PageRequest.of(page, size);
+//        Slice<Blog> slice = repo.findByKeyword(keyword.orElse(""), pageable);
+        Slice<Blog> slice;
+        if (keyword.isPresent() && !keyword.get().isBlank()) {
+            slice = repo.findByKeyword(keyword.get(), pageable);
+        } else {
+            slice = repo.findAll(pageable);
+        }
+
+        return new SliceResponse<>(
+                slice.getContent(),
+                slice.getNumber(),
+                slice.getSize(),
+                slice.hasNext()
+        );
     }
 
 
