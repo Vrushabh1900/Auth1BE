@@ -2,10 +2,14 @@ package newblogproject.example.newproject.service;
 
 import jakarta.validation.Valid;
 import newblogproject.example.newproject.DTO.ProfileRequest;
+import newblogproject.example.newproject.DTO.ProfileResponse;
 import newblogproject.example.newproject.models.Users;
 import newblogproject.example.newproject.repo.UserRepo;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
@@ -135,5 +139,14 @@ public class UserService {
         return users;
 }
 
+   @Cacheable(value = "users",key="#email")
+    public ProfileResponse findByemail(String email) {
 
+       Users user=repo.findByEmail(email).orElseThrow(()->new UsernameNotFoundException("email not found"+email));
+       ProfileResponse PR= new ProfileResponse();
+       PR.setEmail(email);
+       PR.setIsAccountVerified(user.getIsAccountVerified());
+       PR.setUsername(user.getUsername());
+       return PR;
+    }
 }

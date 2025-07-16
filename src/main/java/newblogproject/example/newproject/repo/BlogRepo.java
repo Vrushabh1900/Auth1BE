@@ -1,6 +1,7 @@
 package newblogproject.example.newproject.repo;
 
 import newblogproject.example.newproject.models.Blog;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -24,6 +25,12 @@ public interface BlogRepo extends JpaRepository<Blog,Integer> {
 List<Blog> searchByKeyword(@RequestParam("keyword") String keyword);
 
     Page<Blog> findAll(Pageable pageable);
+
+    @Query("SELECT p from Blog p WHERE "+
+            "LOWER(p.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "LOWER(p.content) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "LOWER(p.author) LIKE LOWER(CONCAT('%', :keyword, '%')) ")
+    Slice<Blog> findByKeyword(String keyword, Pageable pageable);
 
 
 }

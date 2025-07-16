@@ -50,8 +50,8 @@ public class Users {
     @ElementCollection(fetch = FetchType.EAGER)
     private Set<String> roles = new HashSet<>();
 
-    @JsonIgnore // if you expose this via REST
-    @ToString.Exclude // if you use Lombok
+    @JsonIgnore
+    @ToString.Exclude
     @EqualsAndHashCode.Exclude
     @ManyToMany
     @JoinTable(
